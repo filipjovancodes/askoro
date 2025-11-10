@@ -21,6 +21,7 @@ BEDROCK_MODEL_ARN=<arn:aws:bedrock:...:foundation-model/...>
 QUIP_CLIENT_ID=<oauth-client-id>
 QUIP_REDIRECT_URI=<https://yourapp.com/api/quip/oauth/callback>
 QUIP_SCOPES=<optional custom scopes, defaults to "read-all write-all">
+SLACK_SIGNING_SECRET=<slack-app-signing-secret>
 ```
 
 Static AWS credentials are optional if you rely on an execution role (for example, when running on Vercel with IAM roles for service accounts).
@@ -61,6 +62,10 @@ The route forwards the query to Amazon Bedrock RetrieveAndGenerate, returning th
 ## Data Source Sync
 
 Visit `/data` to provide a Quip root folder URL and kick off the OAuth authorization flow. Clicking **Sync Data** calls `/api/quip/oauth/start`, which constructs the Quip authorization URL using the configured client credentials and preserves the folder link in the encoded OAuth `state`. After approval, Quip redirects back to `QUIP_REDIRECT_URI` where you can complete the token exchange and schedule ingestion jobs.
+
+## Slack Bot Integration
+
+Create a Slack app with a slash command (for example `/askoro`) that points to `POST https://yourapp.com/api/slack/command`. Copy the **Signing Secret** into `SLACK_SIGNING_SECRET`. When a user submits a command, the backend verifies the signature, acknowledges the request, queries the Bedrock knowledge base, and posts the answer (including source citations when available) back to Slack via the provided `response_url`. Responses default to `in_channel` when a channel is provided, otherwise they remain ephemeral to the requester.
 
 ## Next Steps
 
