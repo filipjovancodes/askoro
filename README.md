@@ -18,6 +18,9 @@ AWS_ACCESS_KEY_ID=<optional-static-access-key>
 AWS_SECRET_ACCESS_KEY=<optional-static-secret-key>
 BEDROCK_KNOWLEDGE_BASE_ID=<knowledge-base-id>
 BEDROCK_MODEL_ARN=<arn:aws:bedrock:...:foundation-model/...>
+QUIP_CLIENT_ID=<oauth-client-id>
+QUIP_REDIRECT_URI=<https://yourapp.com/api/quip/oauth/callback>
+QUIP_SCOPES=<optional custom scopes, defaults to "read-all write-all">
 ```
 
 Static AWS credentials are optional if you rely on an execution role (for example, when running on Vercel with IAM roles for service accounts).
@@ -51,9 +54,13 @@ The route forwards the query to Amazon Bedrock RetrieveAndGenerate, returning th
 
 ## Deployment Notes
 
-- **Vercel:** add the environment variables in the project settings. Provide an IAM role or static credentials with permissions for `bedrock:RetrieveAndGenerate` and `s3:HeadObject` on the knowledge base bucket.
+- **Vercel:** add the environment variables in the project settings. Provide an IAM role or static credentials with permissions for `bedrock:RetrieveAndGenerate`, `s3:HeadObject` on the knowledge base bucket, and access to any external OAuth callback routes.
 - **Supabase:** configure authentication hooks to require a valid Supabase session before calling the API route if desired.
 - **Logging:** server-side logs will surface in Vercel for troubleshooting failed calls to Bedrock.
+
+## Data Source Sync
+
+Visit `/data` to provide a Quip root folder URL and kick off the OAuth authorization flow. Clicking **Sync Data** calls `/api/quip/oauth/start`, which constructs the Quip authorization URL using the configured client credentials and preserves the folder link in the encoded OAuth `state`. After approval, Quip redirects back to `QUIP_REDIRECT_URI` where you can complete the token exchange and schedule ingestion jobs.
 
 ## Next Steps
 
