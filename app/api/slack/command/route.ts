@@ -71,17 +71,16 @@ export async function POST(request: NextRequest) {
   if (!responseUrl) {
     const result = await tryQueryKnowledgeBase(text);
 
-    if (result?.error) {
-      return NextResponse.json(
-        {
-          response_type: "ephemeral",
-          text: `Sorry, I couldn't look up that answer: ${result.error}`,
-        },
-        { status: 200 },
-      );
+    if ("error" in result) {
+      const errorMessage: SlackMessage = {
+        response_type: "ephemeral",
+        text: `Sorry, I couldn't look up that answer: ${result.error}`,
+      };
+
+      return NextResponse.json(errorMessage, { status: 200 });
     }
 
-    return NextResponse.json(buildSlackMessage(result!.answerText, result!.citations, userId));
+    return NextResponse.json(buildSlackMessage(result.answerText, result.citations, userId));
   }
 
   const ackMessage: SlackMessage = {
@@ -92,16 +91,13 @@ export async function POST(request: NextRequest) {
   void (async () => {
     const result = await tryQueryKnowledgeBase(text);
 
-    if (!result) {
-      return;
-    }
-
-    const message = result.error
-      ? {
-          response_type: "ephemeral",
-          text: `Sorry, I couldn't look up that answer: ${result.error}`,
-        }
-      : buildSlackMessage(result.answerText, result.citations, userId, channelId);
+    const message: SlackMessage =
+      "error" in result
+        ? {
+            response_type: "ephemeral",
+            text: `Sorry, I couldn't look up that answer: ${result.error}`,
+          }
+        : buildSlackMessage(result.answerText, result.citations, userId, channelId);
 
     await postToSlack(responseUrl, message);
   })();
@@ -113,10 +109,8 @@ async function tryQueryKnowledgeBase(query: string): Promise<
   | {
       answerText: string;
       citations: Awaited<ReturnType<typeof queryKnowledgeBase>>["citations"];
-      error?: undefined;
     }
   | { error: string }
-  | undefined
 > {
   try {
     const response = await queryKnowledgeBase({ query });
