@@ -24,6 +24,8 @@ QUIP_SCOPES=<optional custom scopes, defaults to "read-all write-all">
 SLACK_SIGNING_SECRET=<slack-app-signing-secret>
 SUPABASE_URL=<https://xyzcompany.supabase.co>
 SUPABASE_SERVICE_ROLE_KEY=<supabase-service-role-key>
+NEXT_PUBLIC_SUPABASE_URL=<https://xyzcompany.supabase.co>
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<supabase-anon-key>
 ONEDRIVE_CLIENT_ID=<azure-app-client-id>
 ONEDRIVE_REDIRECT_URI=<https://yourapp.com/api/onedrive/oauth/callback>
 ONEDRIVE_SCOPES=<optional custom scopes, defaults to "offline_access Files.Read.All">
@@ -32,6 +34,8 @@ GOOGLE_CLIENT_SECRET=<google-oauth-client-secret>
 GOOGLE_REDIRECT_URI=<https://yourapp.com/api/google/oauth/callback>
 GOOGLE_SCOPES=<optional custom scopes, defaults to "https://www.googleapis.com/auth/drive.readonly">
 ```
+
+**Note:** `NEXT_PUBLIC_SUPABASE_URL` should be set to the same value as `SUPABASE_URL` (both point to your Supabase project URL). `NEXT_PUBLIC_*` variables are exposed to the browser for client-side auth, while `SUPABASE_URL` is server-only.
 
 Static AWS credentials are optional if you rely on an execution role (for example, when running on Vercel with IAM roles for service accounts).
 

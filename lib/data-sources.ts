@@ -10,6 +10,7 @@ export type DataSourceRecord = {
 };
 
 export async function recordDataSourceSync(params: {
+  userId: string;
   dataSourceType: DataSourceType;
   auth: Record<string, unknown>;
   lastSyncTime?: string | null;
@@ -17,6 +18,7 @@ export async function recordDataSourceSync(params: {
   const supabase = getServiceSupabaseClient();
 
   const payload = {
+    user_id: params.userId,
     data_source_type: params.dataSourceType,
     last_sync_time: params.lastSyncTime ?? null,
     auth: params.auth,

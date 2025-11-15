@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { z } from "zod";
 
 import { recordDataSourceSync } from "@/lib/data-sources";
+import { createClient } from "@/lib/supabase/server";
 
 const requestSchema = z.object({
   rootFolderUrl: z.string().url("A valid root folder URL is required"),
@@ -59,6 +60,15 @@ export async function POST(request: NextRequest) {
 
   const state = Buffer.from(JSON.stringify(statePayload)).toString("base64url");
 
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const authorizeUrl = new URL(quipAuthorizeEndpoint);
   authorizeUrl.searchParams.set("response_type", "code");
   authorizeUrl.searchParams.set("client_id", clientId);
@@ -68,6 +78,7 @@ export async function POST(request: NextRequest) {
 
   try {
     await recordDataSourceSync({
+      userId: user.id,
       dataSourceType: "QUIP",
       auth: {
         state,

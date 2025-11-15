@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { z } from "zod";
 
 import { recordDataSourceSync } from "@/lib/data-sources";
+import { createClient } from "@/lib/supabase/server";
 
 const requestSchema = z.object({
   rootFolderUrl: z.string().url("A valid root folder URL is required"),
@@ -54,6 +55,15 @@ export async function POST(request: NextRequest) {
 
   const state = Buffer.from(JSON.stringify(statePayload)).toString("base64url");
 
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const authorizeUrl = new URL(GOOGLE_AUTHORIZE_ENDPOINT);
   authorizeUrl.searchParams.set("client_id", clientId);
   authorizeUrl.searchParams.set("redirect_uri", redirectUri);
@@ -65,6 +75,7 @@ export async function POST(request: NextRequest) {
 
   try {
     await recordDataSourceSync({
+      userId: user.id,
       dataSourceType: "GOOGLE_DRIVE",
       auth: {
         state,
