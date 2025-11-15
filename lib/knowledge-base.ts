@@ -124,7 +124,7 @@ async function getQuipUrlFromS3(uri: string, cache: Map<string, string | null>):
       }),
     );
 
-    const sourceUrl = head.Metadata?.["quip-url"] ?? null;
+    const sourceUrl = head.Metadata?.["source-url"] ?? null;
 
     cache.set(uri, sourceUrl ?? null);
     return sourceUrl ?? null;

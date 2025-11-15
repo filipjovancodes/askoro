@@ -8,9 +8,9 @@ const requestSchema = z.object({
   rootFolderUrl: z.string().url("A valid root folder URL is required"),
 });
 
-const quipAuthorizeEndpoint = "https://platform.quip.com/1/oauth/login";
+const GOOGLE_AUTHORIZE_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth";
 
-function getRequiredEnv(name: string) {
+function getEnvOrThrow(name: string) {
   const value = process.env[name];
   if (!value) {
     throw new Error(`Missing required environment variable: ${name}`);
@@ -38,17 +38,12 @@ export async function POST(request: NextRequest) {
   let scopes: string;
 
   try {
-    clientId = getRequiredEnv("QUIP_CLIENT_ID");
-    redirectUri = getRequiredEnv("QUIP_REDIRECT_URI");
-    scopes = process.env.QUIP_SCOPES ?? "read-all write-all";
+    clientId = getEnvOrThrow("GOOGLE_CLIENT_ID");
+    redirectUri = getEnvOrThrow("GOOGLE_REDIRECT_URI");
+    scopes = process.env.GOOGLE_SCOPES ?? "https://www.googleapis.com/auth/drive.readonly";
   } catch (error) {
-    console.error("Missing Quip OAuth configuration", error);
-    return NextResponse.json(
-      {
-        error: "Server not configured for Quip OAuth",
-      },
-      { status: 500 },
-    );
+    console.error("Missing Google Drive OAuth configuration", error);
+    return NextResponse.json({ error: "Server not configured for Google Drive OAuth" }, { status: 500 });
   }
 
   const nonce = crypto.randomBytes(16).toString("hex");
@@ -59,23 +54,25 @@ export async function POST(request: NextRequest) {
 
   const state = Buffer.from(JSON.stringify(statePayload)).toString("base64url");
 
-  const authorizeUrl = new URL(quipAuthorizeEndpoint);
-  authorizeUrl.searchParams.set("response_type", "code");
+  const authorizeUrl = new URL(GOOGLE_AUTHORIZE_ENDPOINT);
   authorizeUrl.searchParams.set("client_id", clientId);
   authorizeUrl.searchParams.set("redirect_uri", redirectUri);
+  authorizeUrl.searchParams.set("response_type", "code");
   authorizeUrl.searchParams.set("scope", scopes);
+  authorizeUrl.searchParams.set("access_type", "offline");
+  authorizeUrl.searchParams.set("prompt", "consent");
   authorizeUrl.searchParams.set("state", state);
 
   try {
     await recordDataSourceSync({
-      dataSourceType: "QUIP",
+      dataSourceType: "GOOGLE_DRIVE",
       auth: {
         state,
         rootFolderUrl: parseResult.data.rootFolderUrl,
       },
     });
   } catch (error) {
-    console.error("Quip recordDataSourceSync failed", error);
+    console.error("Google Drive recordDataSourceSync failed", error);
     return NextResponse.json({ error: "Failed to persist data source metadata" }, { status: 500 });
   }
 

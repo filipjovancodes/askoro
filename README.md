@@ -22,6 +22,15 @@ QUIP_CLIENT_ID=<oauth-client-id>
 QUIP_REDIRECT_URI=<https://yourapp.com/api/quip/oauth/callback>
 QUIP_SCOPES=<optional custom scopes, defaults to "read-all write-all">
 SLACK_SIGNING_SECRET=<slack-app-signing-secret>
+SUPABASE_URL=<https://xyzcompany.supabase.co>
+SUPABASE_SERVICE_ROLE_KEY=<supabase-service-role-key>
+ONEDRIVE_CLIENT_ID=<azure-app-client-id>
+ONEDRIVE_REDIRECT_URI=<https://yourapp.com/api/onedrive/oauth/callback>
+ONEDRIVE_SCOPES=<optional custom scopes, defaults to "offline_access Files.Read.All">
+GOOGLE_CLIENT_ID=<google-oauth-client-id>
+GOOGLE_CLIENT_SECRET=<google-oauth-client-secret>
+GOOGLE_REDIRECT_URI=<https://yourapp.com/api/google/oauth/callback>
+GOOGLE_SCOPES=<optional custom scopes, defaults to "https://www.googleapis.com/auth/drive.readonly">
 ```
 
 Static AWS credentials are optional if you rely on an execution role (for example, when running on Vercel with IAM roles for service accounts).
@@ -51,7 +60,7 @@ The backend lives at `app/api/knowledge-base-query/route.ts`. It accepts `POST` 
 }
 ```
 
-The route forwards the query to Amazon Bedrock RetrieveAndGenerate, returning the generated answer, citations, and session metadata. Use the `sessionId` to maintain conversational continuity between requests. When a citation points to an S3 object, the API issues a `HeadObject` call to fetch custom metadata (for example `x-amz-meta-quip-url`) and includes that URL in the `sourceUrl` field of each retrieved reference.
+The route forwards the query to Amazon Bedrock RetrieveAndGenerate, returning the generated answer, citations, and session metadata. Use the `sessionId` to maintain conversational continuity between requests. When a citation points to an S3 object, the API issues a `HeadObject` call to fetch custom metadata (for example `x-amz-meta-source-url`) and includes that URL in the `sourceUrl` field of each retrieved reference.
 
 ## Deployment Notes
 
@@ -61,7 +70,17 @@ The route forwards the query to Amazon Bedrock RetrieveAndGenerate, returning th
 
 ## Data Source Sync
 
-Visit `/data` to provide a Quip root folder URL and kick off the OAuth authorization flow. Clicking **Sync Data** calls `/api/quip/oauth/start`, which constructs the Quip authorization URL using the configured client credentials and preserves the folder link in the encoded OAuth `state`. After approval, Quip redirects back to `QUIP_REDIRECT_URI` where you can complete the token exchange and schedule ingestion jobs.
+Visit `/data` to pick a provider (OneDrive or Quip today), paste the root folder URL, and kick off the corresponding OAuth authorization flow. Clicking **Sync Data** calls the provider-specific endpoint (`/api/onedrive/oauth/start` or `/api/quip/oauth/start`), which constructs the authorization URL, persists the sync metadata in Supabase (`data_sources` table), and preserves the folder link in the encoded OAuth `state`. After approval, the provider redirects back to the configured callback where you can exchange the code for tokens and queue ingestion jobs.
+
+### Supabase table
+
+Create the `data_sources` table using `supabase/scripts/create_data_sources_table.sql`:
+
+```bash
+supabase db push --file supabase/scripts/create_data_sources_table.sql
+```
+
+The backend inserts a row each time a user initiates a sync, storing the OAuth `state` payload in the `auth` column for later reconciliation.
 
 ## Slack Bot Integration
 
