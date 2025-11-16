@@ -1,16 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 type DataSourceOption = {
   value: "onedrive" | "googleDrive" | "quip";
   label: string;
   placeholder: string;
-  description: string;
   endpoint: string;
+};
+
+type DataSourceRecord = {
+  id: string;
+  dataSourceType: "QUIP" | "ONEDRIVE" | "GOOGLE_DRIVE";
+  rootFolderUrl: string | null;
+  lastSyncTime: string | null;
 };
 
 type StartSyncResponse = {
@@ -22,33 +31,236 @@ const DATA_SOURCES: DataSourceOption[] = [
     value: "onedrive",
     label: "OneDrive",
     placeholder: "https://onedrive.live.com/...",
-    description:
-      "Provide the OneDrive folder link that contains the documents you want to synchronize. We will preserve it in the OAuth state payload.",
     endpoint: "/api/onedrive/oauth/start",
   },
   {
     value: "googleDrive",
     label: "Google Drive",
     placeholder: "https://drive.google.com/drive/folders/...",
-    description:
-      "Provide the shared Google Drive folder link containing the documents to synchronize. We store it in the OAuth state payload so ingestion jobs know which scope to index.",
     endpoint: "/api/google/oauth/start",
   },
   {
     value: "quip",
     label: "Quip",
     placeholder: "https://platform.quip.com/home",
-    description:
-      "Paste the Quip folder link that contains the documents you want to synchronize. This is stored in the OAuth state payload so we can pick up the right workspace.",
     endpoint: "/api/quip/oauth/start",
   },
 ];
 
+function getDataSourceLabel(type: DataSourceRecord["dataSourceType"]): string {
+  switch (type) {
+    case "ONEDRIVE":
+      return "OneDrive";
+    case "GOOGLE_DRIVE":
+      return "Google Drive";
+    case "QUIP":
+      return "Quip";
+    default:
+      return type;
+  }
+}
+
+function getSyncEndpoint(type: DataSourceRecord["dataSourceType"]): string | null {
+  switch (type) {
+    case "GOOGLE_DRIVE":
+      return "/api/sync/google-drive";
+    case "ONEDRIVE":
+    case "QUIP":
+      // TODO: Add sync endpoints for OneDrive and Quip
+      return null;
+    default:
+      return null;
+  }
+}
+
+function DataSourceRow({
+  dataSource,
+  onSyncComplete,
+  onDelete,
+}: {
+  dataSource: DataSourceRecord;
+  onSyncComplete: () => void;
+  onDelete: () => void;
+}) {
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const syncEndpoint = getSyncEndpoint(dataSource.dataSourceType);
+
+  async function handleSync() {
+    if (!syncEndpoint) {
+      setSyncError("Sync not available for this data source yet");
+      return;
+    }
+
+    if (!dataSource.rootFolderUrl) {
+      setSyncError("No folder selected for this data source. Please select a folder first.");
+      return;
+    }
+
+    setIsSyncing(true);
+    setSyncError(null);
+
+    try {
+      console.log("Starting sync with rootFolderUrl:", dataSource.rootFolderUrl);
+
+      const response = await fetch(syncEndpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          rootFolderUrl: dataSource.rootFolderUrl,
+        }),
+      });
+
+      const data = await response.json();
+      console.log("Sync response:", data);
+
+      if (!response.ok) {
+        const errorMsg = data.error ?? "Failed to sync data source";
+        console.error("Sync failed:", errorMsg);
+        throw new Error(errorMsg);
+      }
+
+      console.log("Sync completed successfully:", data);
+      onSyncComplete();
+    } catch (err) {
+      console.error("Failed to sync data source", err);
+      const errorMessage = err instanceof Error ? err.message : "Failed to sync data source";
+      setSyncError(errorMessage);
+      alert(`Sync failed: ${errorMessage}`);
+    } finally {
+      setIsSyncing(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!confirm("Are you sure you want to delete this data source? This action cannot be undone.")) {
+      return;
+    }
+
+    setIsDeleting(true);
+    setDeleteError(null);
+
+    try {
+      const response = await fetch(`/api/data-sources/${dataSource.id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error ?? "Failed to delete data source");
+      }
+
+      onDelete();
+    } catch (err) {
+      console.error("Failed to delete data source", err);
+      setDeleteError(err instanceof Error ? err.message : "Failed to delete data source");
+      setIsDeleting(false);
+    }
+  }
+
+  return (
+    <tr className="border-b last:border-b-0">
+      <td className="px-4 py-3 text-sm">{getDataSourceLabel(dataSource.dataSourceType)}</td>
+      <td className="px-4 py-3 text-sm">
+        {dataSource.rootFolderUrl ? (
+          <a
+            href={dataSource.rootFolderUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary hover:underline truncate block max-w-md"
+          >
+            {dataSource.rootFolderUrl}
+          </a>
+        ) : (
+          <span className="text-muted-foreground">No URL</span>
+        )}
+      </td>
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-2">
+          {syncEndpoint ? (
+            <div className="flex flex-col gap-1 flex-1">
+              <Button
+                onClick={handleSync}
+                disabled={isSyncing || isDeleting}
+                size="sm"
+                variant="outline"
+                className="w-full"
+              >
+                {isSyncing ? "Syncing..." : "Sync"}
+              </Button>
+              {syncError ? (
+                <span className="text-xs text-destructive">{syncError}</span>
+              ) : null}
+              {deleteError ? (
+                <span className="text-xs text-destructive">{deleteError}</span>
+              ) : null}
+            </div>
+          ) : (
+            <span className="text-xs text-muted-foreground">Coming soon</span>
+          )}
+          <Button
+            onClick={handleDelete}
+            disabled={isDeleting || isSyncing}
+            size="icon-sm"
+            variant="ghost"
+            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+          >
+            {isDeleting ? (
+              <span className="text-xs">...</span>
+            ) : (
+              <Trash2 className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 export default function DataSourcesPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const [dataSources, setDataSources] = useState<DataSourceRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [dataSource, setDataSource] = useState<DataSourceOption["value"]>("onedrive");
   const [rootFolderUrl, setRootFolderUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const status = searchParams.get("status");
+  const statusMessage = searchParams.get("message");
+
+  useEffect(() => {
+    fetchDataSources();
+  }, []);
+
+  // Refresh data sources when user returns from OAuth
+  useEffect(() => {
+    if (status && status.includes("success")) {
+      fetchDataSources();
+    }
+  }, [status]);
+
+  async function fetchDataSources() {
+    try {
+      const response = await fetch("/api/data-sources");
+      if (!response.ok) {
+        throw new Error("Failed to fetch data sources");
+      }
+      const data = await response.json();
+      setDataSources(data.dataSources ?? []);
+    } catch (err) {
+      console.error("Failed to fetch data sources", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   const selectedSource = DATA_SOURCES.find((option) => option.value === dataSource)!;
 
@@ -84,80 +296,116 @@ export default function DataSourcesPage() {
     } catch (err) {
       console.error("Failed to initiate data source sync", err);
       setError(err instanceof Error ? err.message : "Failed to start data source sync");
-    } finally {
       setIsSubmitting(false);
     }
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-col gap-8 px-4 py-12">
+    <main className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-4 py-12">
       <section className="space-y-3">
         <h1 className="text-3xl font-semibold">Knowledge Base Data Sources</h1>
         <p className="text-muted-foreground">
-          Connect enterprise content systems so Askoro can ingest documents into your Amazon Bedrock knowledge base. Begin by
-          selecting a provider and providing the folder link that scopes the ingestion.
+          Connect external data sources to ingest documents into your Amazon Bedrock knowledge base.
         </p>
       </section>
 
-      <form onSubmit={onSubmit} className="flex flex-col gap-5">
-        <div className="grid gap-2">
-          <label className="text-sm font-medium" htmlFor="data-source">
-            Data source
-          </label>
-          <select
-            id="data-source"
-            className="h-10 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            value={dataSource}
-            onChange={(event) => setDataSource(event.target.value as DataSourceOption["value"])}
-            disabled={isSubmitting}
-          >
-            {DATA_SOURCES.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+      {status && (
+        <div
+          className={cn(
+            "rounded-md border px-4 py-3 text-sm",
+            status === "success" || status.includes("success")
+              ? "border-green-500/40 bg-green-500/10 text-green-700"
+              : "border-destructive/40 bg-destructive/10 text-destructive",
+          )}
+        >
+          {statusMessage ||
+            (status.includes("success")
+              ? "Data source connected successfully!"
+              : "An unknown error occurred.")}
         </div>
+      )}
 
-        <div className="space-y-2">
-          <label className="text-sm font-medium" htmlFor="root-folder-url">
-            {selectedSource.label} root/home folder URL
-          </label>
-          <Input
-            id="root-folder-url"
-            value={rootFolderUrl}
-            onChange={(event) => setRootFolderUrl(event.target.value)}
-            placeholder={selectedSource.placeholder}
-            disabled={isSubmitting}
-            required
-          />
-          <p className="text-xs text-muted-foreground">{selectedSource.description}</p>
-        </div>
-
-        {error ? (
-          <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            {error}
-          </div>
-        ) : null}
-
-        <div className="flex justify-end">
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Redirecting..." : "Sync Data"}
-          </Button>
-        </div>
-      </form>
-
-      <section className="space-y-2 rounded-lg border bg-muted/30 p-4 text-sm">
-        <h2 className="text-base font-medium">How it works</h2>
-        <ol className="space-y-1 list-decimal pl-4">
-          <li>Select the system you want to sync from and provide a root folder link.</li>
-          <li>Click “Sync Data” to start the provider&apos;s OAuth flow and grant Askoro access.</li>
-          <li>
-            After authorizing, you&apos;ll return to the configured callback where we can schedule ingestion jobs for the Bedrock
-            knowledge base.
-          </li>
-        </ol>
-      </section>
+      <div className="rounded-lg border">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b">
+              <th className="px-4 py-3 text-left text-sm font-medium">Data Source</th>
+              <th className="px-4 py-3 text-left text-sm font-medium">URL</th>
+              <th className="px-4 py-3 text-left text-sm font-medium w-24">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading ? (
+              <tr>
+                <td colSpan={3} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                  Loading...
+                </td>
+              </tr>
+            ) : dataSources.length === 0 ? (
+              <tr>
+                <td colSpan={3} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                  No data sources yet. Add one below.
+                </td>
+              </tr>
+            ) : (
+              dataSources.map((ds) => (
+                <DataSourceRow
+                  key={ds.id}
+                  dataSource={ds}
+                  onSyncComplete={() => fetchDataSources()}
+                  onDelete={() => fetchDataSources()}
+                />
+              ))
+            )}
+            <tr className="bg-muted/30">
+              <td colSpan={3} className="px-4 py-4">
+                <form onSubmit={onSubmit} className="flex items-end gap-4">
+                  <div className="flex-1 min-w-0">
+                    <label className="text-xs font-medium mb-1 block" htmlFor="data-source">
+                      Data Source
+                    </label>
+                    <select
+                      id="data-source"
+                      className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                      value={dataSource}
+                      onChange={(event) => setDataSource(event.target.value as DataSourceOption["value"])}
+                      disabled={isSubmitting}
+                    >
+                      {DATA_SOURCES.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <label className="text-xs font-medium mb-1 block" htmlFor="root-folder-url">
+                      URL
+                    </label>
+                    <Input
+                      id="root-folder-url"
+                      value={rootFolderUrl}
+                      onChange={(event) => setRootFolderUrl(event.target.value)}
+                      placeholder={selectedSource.placeholder}
+                      disabled={isSubmitting}
+                      required
+                      className="w-full bg-white"
+                    />
+                  </div>
+                  <Button type="submit" disabled={isSubmitting} size="default">
+                    {isSubmitting ? "Redirecting..." : "Add"}
+                  </Button>
+                </form>
+                {error ? (
+                  <div className="mt-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                    {error}
+                  </div>
+                ) : null}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </main>
   );
 }
