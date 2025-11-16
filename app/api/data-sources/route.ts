@@ -9,6 +9,7 @@ type DataSourceRecord = {
   dataSourceType: DataSourceType;
   lastSyncTime: string | null;
   rootFolderUrl: string | null;
+  lastSyncStatus?: "failed" | "success" | null;
 };
 
 export async function GET() {
@@ -38,12 +39,17 @@ export async function GET() {
     data?.map((record) => {
       const auth = (record.auth ?? {}) as Record<string, unknown>;
       const rootFolderUrl = (auth.rootFolderUrl as string | undefined) ?? null;
+      const lastSyncStatus =
+        ((auth.lastSyncStatus as string | undefined) === "failed" && "failed") ||
+        ((auth.lastSyncStatus as string | undefined) === "success" && "success") ||
+        null;
 
       return {
         id: record.id,
         dataSourceType: record.data_source_type as DataSourceType,
         lastSyncTime: record.last_sync_time,
         rootFolderUrl,
+        lastSyncStatus,
       };
     }) ?? [];
 

@@ -1,6 +1,6 @@
 import { getServiceSupabaseClient } from "@/lib/supabase";
 
-export type DataSourceType = "QUIP" | "ONEDRIVE" | "GOOGLE_DRIVE";
+export type DataSourceType = "QUIP" | "ONEDRIVE" | "GOOGLE_DRIVE" | "GITHUB" | "NOTION";
 
 export type DataSourceRecord = {
   id: string;

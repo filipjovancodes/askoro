@@ -5,10 +5,10 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 
 const requestSchema = z.object({
-  rootFolderUrl: z.string().url("A valid root folder URL is required"),
+  rootFolderUrl: z.string().url("A valid repository URL is required"),
 });
 
-const GOOGLE_AUTHORIZE_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth";
+const GITHUB_AUTHORIZE_ENDPOINT = "https://github.com/login/oauth/authorize";
 
 function getEnvOrThrow(name: string) {
   const value = process.env[name];
@@ -38,12 +38,12 @@ export async function POST(request: NextRequest) {
   let scopes: string;
 
   try {
-    clientId = getEnvOrThrow("GOOGLE_CLIENT_ID");
-    redirectUri = getEnvOrThrow("GOOGLE_REDIRECT_URI");
-    scopes = process.env.GOOGLE_SCOPES ?? "https://www.googleapis.com/auth/drive.readonly";
+    clientId = getEnvOrThrow("GITHUB_CLIENT_ID");
+    redirectUri = getEnvOrThrow("GITHUB_REDIRECT_URI");
+    scopes = process.env.GITHUB_SCOPES ?? "repo read:org";
   } catch (error) {
-    console.error("Missing Google Drive OAuth configuration", error);
-    return NextResponse.json({ error: "Server not configured for Google Drive OAuth" }, { status: 500 });
+    console.error("Missing GitHub OAuth configuration", error);
+    return NextResponse.json({ error: "Server not configured for GitHub OAuth" }, { status: 500 });
   }
 
   const nonce = crypto.randomBytes(16).toString("hex");
@@ -63,13 +63,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const authorizeUrl = new URL(GOOGLE_AUTHORIZE_ENDPOINT);
+  const authorizeUrl = new URL(GITHUB_AUTHORIZE_ENDPOINT);
   authorizeUrl.searchParams.set("client_id", clientId);
   authorizeUrl.searchParams.set("redirect_uri", redirectUri);
-  authorizeUrl.searchParams.set("response_type", "code");
   authorizeUrl.searchParams.set("scope", scopes);
-  authorizeUrl.searchParams.set("access_type", "offline");
-  authorizeUrl.searchParams.set("prompt", "consent");
   authorizeUrl.searchParams.set("state", state);
 
   return NextResponse.json({

@@ -33,6 +33,14 @@ GOOGLE_CLIENT_ID=<google-oauth-client-id>
 GOOGLE_CLIENT_SECRET=<google-oauth-client-secret>
 GOOGLE_REDIRECT_URI=<https://yourapp.com/api/google/oauth/callback>
 GOOGLE_SCOPES=<optional custom scopes, defaults to "https://www.googleapis.com/auth/drive.readonly">
+GITHUB_CLIENT_ID=<github-oauth-app-client-id>
+GITHUB_CLIENT_SECRET=<github-oauth-app-client-secret>
+GITHUB_REDIRECT_URI=<https://yourapp.com/api/github/oauth/callback>
+GITHUB_SCOPES=<optional custom scopes, defaults to "repo read:org">
+NOTION_CLIENT_ID=<notion-oauth-app-client-id>
+NOTION_CLIENT_SECRET=<notion-oauth-app-client-secret>
+NOTION_REDIRECT_URI=<https://yourapp.com/api/notion/oauth/callback>
+NOTION_OWNER=<optional, defaults to "user">
 ```
 
 **Note:** `NEXT_PUBLIC_SUPABASE_URL` should be set to the same value as `SUPABASE_URL` (both point to your Supabase project URL). `NEXT_PUBLIC_*` variables are exposed to the browser for client-side auth, while `SUPABASE_URL` is server-only.

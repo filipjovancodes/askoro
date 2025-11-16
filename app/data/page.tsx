@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 type DataSourceOption = {
-  value: "onedrive" | "googleDrive" | "quip";
+  value: "onedrive" | "googleDrive" | "quip" | "github" | "notion";
   label: string;
   placeholder: string;
   endpoint: string;
@@ -17,9 +17,10 @@ type DataSourceOption = {
 
 type DataSourceRecord = {
   id: string;
-  dataSourceType: "QUIP" | "ONEDRIVE" | "GOOGLE_DRIVE";
+  dataSourceType: "QUIP" | "ONEDRIVE" | "GOOGLE_DRIVE" | "GITHUB" | "NOTION";
   rootFolderUrl: string | null;
   lastSyncTime: string | null;
+  lastSyncStatus?: "failed" | "success" | null;
 };
 
 type StartSyncResponse = {
@@ -45,6 +46,18 @@ const DATA_SOURCES: DataSourceOption[] = [
     placeholder: "https://platform.quip.com/home",
     endpoint: "/api/quip/oauth/start",
   },
+  {
+    value: "github",
+    label: "GitHub",
+    placeholder: "https://github.com/owner/repo or https://github.com/owner/repo/tree/branch/path",
+    endpoint: "/api/github/oauth/start",
+  },
+  {
+    value: "notion",
+    label: "Notion",
+    placeholder: "https://www.notion.so/Page-Title-abc123...",
+    endpoint: "/api/notion/oauth/start",
+  },
 ];
 
 function getDataSourceLabel(type: DataSourceRecord["dataSourceType"]): string {
@@ -55,6 +68,10 @@ function getDataSourceLabel(type: DataSourceRecord["dataSourceType"]): string {
       return "Google Drive";
     case "QUIP":
       return "Quip";
+    case "GITHUB":
+      return "GitHub";
+    case "NOTION":
+      return "Notion";
     default:
       return type;
   }
@@ -64,6 +81,10 @@ function getSyncEndpoint(type: DataSourceRecord["dataSourceType"]): string | nul
   switch (type) {
     case "GOOGLE_DRIVE":
       return "/api/sync/google-drive";
+    case "GITHUB":
+      return "/api/sync/github";
+    case "NOTION":
+      return "/api/sync/notion";
     case "ONEDRIVE":
     case "QUIP":
       // TODO: Add sync endpoints for OneDrive and Quip
@@ -163,6 +184,38 @@ function DataSourceRow({
     }
   }
 
+  function formatLastSyncTime(lastSyncTime: string | null, lastSyncStatus?: "failed" | "success" | null): string {
+    if (lastSyncStatus === "failed") {
+      return "Failed";
+    }
+    if (!lastSyncTime) {
+      return "Never";
+    }
+
+    const date = new Date(lastSyncTime);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) {
+      return "Just now";
+    } else if (diffMins < 60) {
+      return `${diffMins}m ago`;
+    } else if (diffHours < 24) {
+      return `${diffHours}h ago`;
+    } else if (diffDays < 7) {
+      return `${diffDays}d ago`;
+    } else {
+      return date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
+      });
+    }
+  }
+
   return (
     <tr className="border-b last:border-b-0">
       <td className="px-4 py-3 text-sm">{getDataSourceLabel(dataSource.dataSourceType)}</td>
@@ -179,6 +232,9 @@ function DataSourceRow({
         ) : (
           <span className="text-muted-foreground">No URL</span>
         )}
+      </td>
+      <td className="px-4 py-3 text-sm text-muted-foreground">
+        {formatLastSyncTime(dataSource.lastSyncTime, dataSource.lastSyncStatus)}
       </td>
       <td className="px-4 py-3">
         <div className="flex items-center gap-2">
@@ -331,19 +387,20 @@ export default function DataSourcesPage() {
             <tr className="border-b">
               <th className="px-4 py-3 text-left text-sm font-medium">Data Source</th>
               <th className="px-4 py-3 text-left text-sm font-medium">URL</th>
+              <th className="px-4 py-3 text-left text-sm font-medium">Last Sync</th>
               <th className="px-4 py-3 text-left text-sm font-medium w-24">Actions</th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={3} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                <td colSpan={4} className="px-4 py-8 text-center text-sm text-muted-foreground">
                   Loading...
                 </td>
               </tr>
             ) : dataSources.length === 0 ? (
               <tr>
-                <td colSpan={3} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                <td colSpan={4} className="px-4 py-8 text-center text-sm text-muted-foreground">
                   No data sources yet. Add one below.
                 </td>
               </tr>
@@ -358,7 +415,7 @@ export default function DataSourcesPage() {
               ))
             )}
             <tr className="bg-muted/30">
-              <td colSpan={3} className="px-4 py-4">
+              <td colSpan={4} className="px-4 py-4">
                 <form onSubmit={onSubmit} className="flex items-end gap-4">
                   <div className="flex-1 min-w-0">
                     <label className="text-xs font-medium mb-1 block" htmlFor="data-source">

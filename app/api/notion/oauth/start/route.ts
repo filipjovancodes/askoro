@@ -5,10 +5,10 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 
 const requestSchema = z.object({
-  rootFolderUrl: z.string().url("A valid root folder URL is required"),
+  rootFolderUrl: z.string().url("A valid Notion workspace or page URL is required"),
 });
 
-const GOOGLE_AUTHORIZE_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth";
+const NOTION_AUTHORIZE_ENDPOINT = "https://api.notion.com/v1/oauth/authorize";
 
 function getEnvOrThrow(name: string) {
   const value = process.env[name];
@@ -35,15 +35,15 @@ export async function POST(request: NextRequest) {
 
   let clientId: string;
   let redirectUri: string;
-  let scopes: string;
+  let owner: string;
 
   try {
-    clientId = getEnvOrThrow("GOOGLE_CLIENT_ID");
-    redirectUri = getEnvOrThrow("GOOGLE_REDIRECT_URI");
-    scopes = process.env.GOOGLE_SCOPES ?? "https://www.googleapis.com/auth/drive.readonly";
+    clientId = getEnvOrThrow("NOTION_CLIENT_ID");
+    redirectUri = getEnvOrThrow("NOTION_REDIRECT_URI");
+    owner = process.env.NOTION_OWNER ?? "user";
   } catch (error) {
-    console.error("Missing Google Drive OAuth configuration", error);
-    return NextResponse.json({ error: "Server not configured for Google Drive OAuth" }, { status: 500 });
+    console.error("Missing Notion OAuth configuration", error);
+    return NextResponse.json({ error: "Server not configured for Notion OAuth" }, { status: 500 });
   }
 
   const nonce = crypto.randomBytes(16).toString("hex");
@@ -63,13 +63,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const authorizeUrl = new URL(GOOGLE_AUTHORIZE_ENDPOINT);
+  const authorizeUrl = new URL(NOTION_AUTHORIZE_ENDPOINT);
   authorizeUrl.searchParams.set("client_id", clientId);
   authorizeUrl.searchParams.set("redirect_uri", redirectUri);
   authorizeUrl.searchParams.set("response_type", "code");
-  authorizeUrl.searchParams.set("scope", scopes);
-  authorizeUrl.searchParams.set("access_type", "offline");
-  authorizeUrl.searchParams.set("prompt", "consent");
+  authorizeUrl.searchParams.set("owner", owner);
   authorizeUrl.searchParams.set("state", state);
 
   return NextResponse.json({
