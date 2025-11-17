@@ -1,4 +1,4 @@
-import { listGoogleDriveFiles, downloadGoogleDriveFile, type GoogleTokens } from "@/lib/google-drive";
+import { listGoogleDriveFiles, downloadGoogleDriveFile, ensureGoogleAccessToken, type GoogleTokens } from "@/lib/google-drive";
 import { uploadFileToKnowledgeBase, fileExistsInKnowledgeBase } from "@/lib/s3-sync";
 import { getDataSourceByUserTypeAndUrl, updateDataSourceById } from "@/lib/data-sources";
 
@@ -21,13 +21,23 @@ export async function syncGoogleDriveToS3(params: {
   }
 
   const auth = dataSource.auth;
-  const tokens = auth.tokens as GoogleTokens;
+  let tokens = auth.tokens as GoogleTokens;
 
   console.log("Tokens available:", tokens ? "yes" : "no");
 
   if (!tokens || !params.rootFolderUrl) {
     throw new Error("Invalid Google Drive configuration: missing tokens or root folder URL");
   }
+
+  // Ensure fresh access token and persist if rotated
+  tokens = await ensureGoogleAccessToken({
+    tokens,
+    onTokensUpdated: async (updated) => {
+      await updateDataSourceById(dataSource.id, {
+        auth: { ...(dataSource.auth ?? {}), tokens: updated },
+      });
+    },
+  });
 
   console.log("Listing Google Drive files...");
   const files = await listGoogleDriveFiles({

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
-import { syncGoogleDriveToS3 } from "@/lib/sync-google-drive";
+import { syncConfluenceToS3 } from "@/lib/sync-confluence";
 import { getDataSourceByUserTypeAndUrl, updateDataSourceById } from "@/lib/data-sources";
 
 export async function POST(request: NextRequest) {
@@ -18,37 +18,36 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const rootFolderUrl = body.rootFolderUrl as string | undefined;
 
-    console.log("Sync request received:", { userId: user.id, rootFolderUrl });
+    console.log("Confluence sync request received:", { userId: user.id, rootFolderUrl });
 
     if (!rootFolderUrl) {
-      console.error("Missing rootFolderUrl in sync request");
+      console.error("Missing rootFolderUrl in Confluence sync request");
       return NextResponse.json({ error: "rootFolderUrl is required" }, { status: 400 });
     }
 
-    console.log("Starting Google Drive sync...");
-    const result = await syncGoogleDriveToS3({
+    console.log("Starting Confluence sync...");
+    const result = await syncConfluenceToS3({
       userId: user.id,
       rootFolderUrl,
     });
 
-    console.log("Google Drive sync completed:", result);
+    console.log("Confluence sync completed:", result);
 
     return NextResponse.json({
       success: true,
       ...result,
     });
   } catch (error) {
-    console.error("Google Drive sync failed", error);
-    const errorMessage = error instanceof Error ? error.message : "Failed to sync Google Drive";
+    console.error("Confluence sync failed", error);
+    const errorMessage = error instanceof Error ? error.message : "Failed to sync Confluence";
     console.error("Error details:", errorMessage, error);
 
-    // If it's an auth error, mark failed and offer reauth
     try {
       const body = await request.json().catch(() => ({}));
       const rootFolderUrlInCatch = (body as any).rootFolderUrl as string | undefined;
       const dataSource = await getDataSourceByUserTypeAndUrl({
-        userId: user.id,
-        dataSourceType: "GOOGLE_DRIVE",
+        userId: user!.id,
+        dataSourceType: "CONFLUENCE",
         rootFolderUrl: rootFolderUrlInCatch ?? "",
       });
       if (dataSource) {
@@ -61,17 +60,18 @@ export async function POST(request: NextRequest) {
         });
       }
     } catch (e) {
-      console.error("Failed to update data source after auth error", e);
+      console.error("Failed to update Confluence data source after auth error", e);
     }
 
-    // Tell client to reauth via start endpoint
     return NextResponse.json(
       {
         error: "Requires Authentication",
         reauth: true,
-        startEndpoint: "/api/google/oauth/start",
+        startEndpoint: "/api/confluence/oauth/start",
       },
       { status: 401 },
     );
   }
 }
+
+

@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 type DataSourceOption = {
-  value: "onedrive" | "googleDrive" | "quip" | "github" | "notion";
+  value: "onedrive" | "googleDrive" | "quip" | "github" | "notion" | "confluence";
   label: string;
   placeholder: string;
   endpoint: string;
@@ -17,10 +17,11 @@ type DataSourceOption = {
 
 type DataSourceRecord = {
   id: string;
-  dataSourceType: "QUIP" | "ONEDRIVE" | "GOOGLE_DRIVE" | "GITHUB" | "NOTION";
+  dataSourceType: "QUIP" | "ONEDRIVE" | "GOOGLE_DRIVE" | "GITHUB" | "NOTION" | "CONFLUENCE";
   rootFolderUrl: string | null;
   lastSyncTime: string | null;
   lastSyncStatus?: "failed" | "success" | null;
+  lastSyncMessage?: string | null;
 };
 
 type StartSyncResponse = {
@@ -58,6 +59,12 @@ const DATA_SOURCES: DataSourceOption[] = [
     placeholder: "https://www.notion.so/Page-Title-abc123...",
     endpoint: "/api/notion/oauth/start",
   },
+  {
+    value: "confluence",
+    label: "Confluence",
+    placeholder: "https://your-domain.atlassian.net/wiki or /wiki/spaces/SPACEKEY",
+    endpoint: "/api/confluence/oauth/start",
+  },
 ];
 
 function getDataSourceLabel(type: DataSourceRecord["dataSourceType"]): string {
@@ -72,6 +79,8 @@ function getDataSourceLabel(type: DataSourceRecord["dataSourceType"]): string {
       return "GitHub";
     case "NOTION":
       return "Notion";
+    case "CONFLUENCE":
+      return "Confluence";
     default:
       return type;
   }
@@ -85,6 +94,8 @@ function getSyncEndpoint(type: DataSourceRecord["dataSourceType"]): string | nul
       return "/api/sync/github";
     case "NOTION":
       return "/api/sync/notion";
+    case "CONFLUENCE":
+      return "/api/sync/confluence";
     case "ONEDRIVE":
     case "QUIP":
       // TODO: Add sync endpoints for OneDrive and Quip
@@ -110,7 +121,7 @@ function DataSourceRow({
 
   const syncEndpoint = getSyncEndpoint(dataSource.dataSourceType);
 
-  async function handleSync() {
+      async function handleSync() {
     if (!syncEndpoint) {
       setSyncError("Sync not available for this data source yet");
       return;
@@ -127,7 +138,7 @@ function DataSourceRow({
     try {
       console.log("Starting sync with rootFolderUrl:", dataSource.rootFolderUrl);
 
-      const response = await fetch(syncEndpoint, {
+          let response = await fetch(syncEndpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -137,11 +148,33 @@ function DataSourceRow({
         }),
       });
 
-      const data = await response.json();
+          let data = await response.json();
       console.log("Sync response:", data);
 
       if (!response.ok) {
-        const errorMsg = data.error ?? "Failed to sync data source";
+            // If reauth required, initiate OAuth automatically
+            if (response.status === 401 && data?.reauth && data?.startEndpoint && dataSource.rootFolderUrl) {
+              try {
+                const startRes = await fetch(data.startEndpoint, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ rootFolderUrl: dataSource.rootFolderUrl }),
+                });
+                const startData = await startRes.json().catch(() => ({}));
+                if (startRes.ok && startData.authorizeUrl) {
+                  window.location.href = startData.authorizeUrl;
+                  return;
+                }
+                throw new Error(startData.error ?? "Failed to start re-authorization");
+              } catch (reauthErr) {
+                const msg = reauthErr instanceof Error ? reauthErr.message : "Failed to re-authorize";
+                setSyncError(msg);
+                alert(`Sync failed: ${msg}`);
+                return;
+              }
+            }
+
+            const errorMsg = data.error ?? "Failed to sync data source";
         console.error("Sync failed:", errorMsg);
         throw new Error(errorMsg);
       }
@@ -184,9 +217,13 @@ function DataSourceRow({
     }
   }
 
-  function formatLastSyncTime(lastSyncTime: string | null, lastSyncStatus?: "failed" | "success" | null): string {
+  function formatLastSyncTime(
+    lastSyncTime: string | null,
+    lastSyncStatus?: "failed" | "success" | null,
+    lastSyncMessage?: string | null,
+  ): string {
     if (lastSyncStatus === "failed") {
-      return "Failed";
+      return lastSyncMessage ? `Failed: ${lastSyncMessage}` : "Failed";
     }
     if (!lastSyncTime) {
       return "Never";
@@ -234,7 +271,7 @@ function DataSourceRow({
         )}
       </td>
       <td className="px-4 py-3 text-sm text-muted-foreground">
-        {formatLastSyncTime(dataSource.lastSyncTime, dataSource.lastSyncStatus)}
+        {formatLastSyncTime(dataSource.lastSyncTime, dataSource.lastSyncStatus, dataSource.lastSyncMessage)}
       </td>
       <td className="px-4 py-3">
         <div className="flex items-center gap-2">

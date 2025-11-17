@@ -10,6 +10,7 @@ type DataSourceRecord = {
   lastSyncTime: string | null;
   rootFolderUrl: string | null;
   lastSyncStatus?: "failed" | "success" | null;
+  lastSyncMessage?: string | null;
 };
 
 export async function GET() {
@@ -43,6 +44,7 @@ export async function GET() {
         ((auth.lastSyncStatus as string | undefined) === "failed" && "failed") ||
         ((auth.lastSyncStatus as string | undefined) === "success" && "success") ||
         null;
+      const lastSyncMessage = (auth.lastSyncMessage as string | undefined) ?? null;
 
       return {
         id: record.id,
@@ -50,6 +52,7 @@ export async function GET() {
         lastSyncTime: record.last_sync_time,
         rootFolderUrl,
         lastSyncStatus,
+        lastSyncMessage,
       };
     }) ?? [];
 

@@ -41,6 +41,10 @@ NOTION_CLIENT_ID=<notion-oauth-app-client-id>
 NOTION_CLIENT_SECRET=<notion-oauth-app-client-secret>
 NOTION_REDIRECT_URI=<https://yourapp.com/api/notion/oauth/callback>
 NOTION_OWNER=<optional, defaults to "user">
+CONFLUENCE_CLIENT_ID=<atlassian-oauth-client-id>
+CONFLUENCE_CLIENT_SECRET=<atlassian-oauth-client-secret>
+CONFLUENCE_REDIRECT_URI=<https://yourapp.com/api/confluence/oauth/callback>
+CONFLUENCE_SCOPES=<optional custom scopes, defaults to "read:confluence-content.all offline_access">
 ```
 
 **Note:** `NEXT_PUBLIC_SUPABASE_URL` should be set to the same value as `SUPABASE_URL` (both point to your Supabase project URL). `NEXT_PUBLIC_*` variables are exposed to the browser for client-side auth, while `SUPABASE_URL` is server-only.

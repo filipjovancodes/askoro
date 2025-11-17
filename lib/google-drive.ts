@@ -64,12 +64,49 @@ export async function exchangeGoogleCodeForTokens(params: { code: string; state:
     redirect_uri: getEnv("GOOGLE_REDIRECT_URI"),
   });
 
-  oauth2Client.setCredentials(tokens);
+  // Convert tokens to match Credentials type (remove null from scope)
+  const credentials = {
+    ...tokens,
+    scope: tokens.scope ?? undefined,
+  };
+  oauth2Client.setCredentials(credentials);
 
   return {
     tokens,
     statePayload,
   };
+}
+
+export async function ensureGoogleAccessToken(params: {
+  tokens: GoogleTokens;
+  onTokensUpdated?: (updated: GoogleTokens) => Promise<void> | void;
+}): Promise<GoogleTokens> {
+  const oauth2Client = getOAuthClient();
+  const credentials = { ...params.tokens, scope: params.tokens.scope ?? undefined };
+  oauth2Client.setCredentials(credentials);
+
+  // Trigger refresh if needed by requesting an access token
+  const res = await oauth2Client.getAccessToken();
+  const newAccessToken = res?.token ?? undefined;
+
+  const updated: GoogleTokens = {
+    ...params.tokens,
+    access_token: newAccessToken ?? params.tokens.access_token ?? null,
+    expiry_date: oauth2Client.credentials.expiry_date ?? params.tokens.expiry_date ?? null,
+    scope: (oauth2Client.credentials.scope as string | undefined) ?? params.tokens.scope ?? undefined,
+    token_type: oauth2Client.credentials.token_type ?? params.tokens.token_type ?? undefined,
+    refresh_token: params.tokens.refresh_token ?? oauth2Client.credentials.refresh_token ?? null,
+  };
+
+  const changed =
+    updated.access_token !== params.tokens.access_token ||
+    updated.expiry_date !== params.tokens.expiry_date;
+
+  if (changed && params.onTokensUpdated) {
+    await params.onTokensUpdated(updated);
+  }
+
+  return updated;
 }
 
 function createDriveClient(tokens: GoogleTokens): drive_v3.Drive {
