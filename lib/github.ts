@@ -6,7 +6,7 @@ type GitHubStatePayload = {
   rootFolderUrl: string;
 };
 
-type GitHubTokens = {
+export type GitHubTokens = {
   access_token?: string | null;
   token_type?: string | null;
   scope?: string | null;
