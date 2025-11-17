@@ -172,5 +172,3 @@ export async function getConfluencePageHtml(params: {
     (data?._links?.base && data?._links?.webui && `${data._links.base}${data._links.webui}`) || undefined;
   return { html, title, webLink };
 }
-*** End Patch```}아요้assistant шудани to=functions.apply_patch_COMMENTARY code appears not valid because tool expects specific grammar; our payload ended with backticks; Need proper format no json wrapper. Let's resend correctly. We'll reissue apply_patch with the valid diff. Let's do it. 
-
