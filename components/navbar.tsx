@@ -52,6 +52,9 @@ export function Navbar() {
           <Link href="/pricing" className="text-sm text-muted-foreground hover:text-foreground transition">
             Pricing
           </Link>
+          <Link href="/blog" className="text-sm text-muted-foreground hover:text-foreground transition">
+            Blog
+          </Link>
           {user ? (
             <Link href="/data" className="text-sm text-muted-foreground hover:text-foreground transition">
               Data Sources
