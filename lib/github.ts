@@ -147,13 +147,19 @@ export async function listGitHubFiles(params: {
       recursive: "1",
     });
 
-    // Filter to only files (not directories)
-    let files = treeData.tree.filter((item) => item.type === "blob");
+    // Filter to only files (not directories) and ensure required properties exist
+    let files = treeData.tree.filter(
+      (item): item is typeof item & { path: string; mode: string; type: string; sha: string } =>
+        item.type === "blob" &&
+        typeof item.path === "string" &&
+        typeof item.mode === "string" &&
+        typeof item.sha === "string"
+    );
 
     // If a path is specified, filter to that path
     if (params.path) {
       const pathPrefix = params.path.endsWith("/") ? params.path : `${params.path}/`;
-      files = files.filter((file) => file.path?.startsWith(pathPrefix));
+      files = files.filter((file) => file.path.startsWith(pathPrefix));
     }
 
     return files;
